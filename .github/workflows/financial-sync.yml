@@ -51,6 +51,7 @@ jobs:
         if: github.event_name != 'schedule' || steps.schedule.outputs.run == 'yes'
         with:
           python-version: "3.12"
+          cache: "pip"
       - name: Install dependencies
         if: github.event_name != 'schedule' || steps.schedule.outputs.run == 'yes'
         run: pip install -r requirements.txt
