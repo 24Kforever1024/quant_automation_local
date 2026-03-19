@@ -19,12 +19,12 @@ jobs:
       IFIND_REFRESH_TOKEN: ${{ secrets.IFIND_REFRESH_TOKEN }}
       VOLCENGINE_ENABLED: "true"
       VOLCENGINE_API_KEY: ${{ secrets.VOLCENGINE_API_KEY }}
-      VOLCENGINE_BASE_URL: ${{ secrets.VOLCENGINE_BASE_URL }}
-      VOLCENGINE_MODEL: ${{ secrets.VOLCENGINE_MODEL }}
+      VOLCENGINE_BASE_URL: "https://ark.cn-beijing.volces.com/api/v3"
+      VOLCENGINE_MODEL: "deepseek-r1-250528"
       SILICONFLOW_ENABLED: "true"
       SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
-      SILICONFLOW_BASE_URL: ${{ secrets.SILICONFLOW_BASE_URL }}
-      SILICONFLOW_MODEL: ${{ secrets.SILICONFLOW_MODEL }}
+      SILICONFLOW_BASE_URL: "https://api.siliconflow.cn/v1"
+      SILICONFLOW_MODEL: "deepseek-ai/DeepSeek-V3.2"
     steps:
       - uses: actions/checkout@v4
       - name: Decide schedule window
