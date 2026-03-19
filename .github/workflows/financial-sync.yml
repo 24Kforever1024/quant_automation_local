@@ -17,7 +17,6 @@ jobs:
       FEISHU_LOG_TABLE_ID: ${{ secrets.FEISHU_LOG_TABLE_ID }}
       IFIND_ACCESS_TOKEN: ${{ secrets.IFIND_ACCESS_TOKEN }}
       IFIND_REFRESH_TOKEN: ${{ secrets.IFIND_REFRESH_TOKEN }}
-      YFINANCE_CACHE_DIR: ${{ runner.temp }}/yfinance-cache
       VOLCENGINE_ENABLED: "true"
       VOLCENGINE_API_KEY: ${{ secrets.VOLCENGINE_API_KEY }}
       VOLCENGINE_BASE_URL: ${{ secrets.VOLCENGINE_BASE_URL }}

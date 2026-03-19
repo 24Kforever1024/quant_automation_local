@@ -1,6 +1,23 @@
 # Feishu Watchlist Automation
 
-用于自动更新飞书多维表格 watchlist 的价格与财务字段。
+Automates price and financial-data sync for a Feishu Bitable watchlist across HK, A-share, and US equities.
+
+这个项目用于把多市场股票 watchlist 的价格与财务字段自动回写到飞书多维表格，支持本地运行，也支持通过 GitHub Actions 定时执行。
+
+## Highlights
+
+- 多市场支持：港股、A 股、美股
+- 双主流程：价格同步 + 财务同步
+- 港股财务链路：HKEX + iFind + LLM 路由
+- 可部署方式：本地运行 / GitHub Actions 定时任务
+- 已包含基础单测与配置示例
+
+## Quick Start
+
+1. 创建虚拟环境并安装依赖
+2. 复制 `.env.example` 为 `.env`
+3. 填入所需配置
+4. 运行 `python main_price.py` 或 `python main_financial.py`
 
 ## 功能
 
@@ -24,13 +41,6 @@
 - `utils/`：通用工具
 - `tests/`：本地可重复运行的轻量测试
 - `.github/workflows/`：GitHub Actions
-
-## 本地运行
-
-1. 创建虚拟环境并安装依赖
-2. 复制 `.env.example` 为 `.env`
-3. 填入所需配置
-4. 运行
 
 ```bash
 python main_price.py
