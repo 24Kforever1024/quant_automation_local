@@ -1,0 +1,60 @@
+name: financial-sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "30 20 * * *"
+
+jobs:
+  run-financial-sync:
+    runs-on: ubuntu-latest
+    env:
+      TZ: Asia/Shanghai
+      FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+      FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+      FEISHU_APP_TOKEN: ${{ secrets.FEISHU_APP_TOKEN }}
+      FEISHU_TABLE_ID: ${{ secrets.FEISHU_TABLE_ID }}
+      FEISHU_LOG_TABLE_ID: ${{ secrets.FEISHU_LOG_TABLE_ID }}
+      IFIND_ACCESS_TOKEN: ${{ secrets.IFIND_ACCESS_TOKEN }}
+      IFIND_REFRESH_TOKEN: ${{ secrets.IFIND_REFRESH_TOKEN }}
+      YFINANCE_CACHE_DIR: ${{ runner.temp }}/yfinance-cache
+      VOLCENGINE_ENABLED: "true"
+      VOLCENGINE_API_KEY: ${{ secrets.VOLCENGINE_API_KEY }}
+      VOLCENGINE_BASE_URL: ${{ secrets.VOLCENGINE_BASE_URL }}
+      VOLCENGINE_MODEL: ${{ secrets.VOLCENGINE_MODEL }}
+      SILICONFLOW_ENABLED: ${{ secrets.SILICONFLOW_ENABLED }}
+      SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
+      SILICONFLOW_BASE_URL: ${{ secrets.SILICONFLOW_BASE_URL }}
+      SILICONFLOW_MODEL: ${{ secrets.SILICONFLOW_MODEL }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decide schedule window
+        id: schedule
+        if: github.event_name == 'schedule'
+        shell: bash
+        run: |
+          month=$(date +%-m)
+          day=$(date +%-d)
+          weekday=$(date +%u)
+          run=no
+          if [[ "$month" =~ ^(1|2|3|4|5|8|10|11)$ ]]; then
+            if [[ "$weekday" == "1" ]]; then
+              run=yes
+            fi
+          else
+            if [[ "$day" == "1" ]]; then
+              run=yes
+            fi
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "month=$month day=$day weekday=$weekday run=$run"
+      - uses: actions/setup-python@v5
+        if: github.event_name != 'schedule' || steps.schedule.outputs.run == 'yes'
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        if: github.event_name != 'schedule' || steps.schedule.outputs.run == 'yes'
+        run: pip install -r requirements.txt
+      - name: Run financial sync
+        if: github.event_name != 'schedule' || steps.schedule.outputs.run == 'yes'
+        run: python main_financial.py

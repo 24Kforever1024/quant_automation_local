@@ -1,0 +1,41 @@
+name: price-sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "45 1 * * 1-5"
+    - cron: "45 2 * * 1-5"
+    - cron: "45 3 * * 1-5"
+    - cron: "45 5 * * 1-5"
+    - cron: "45 6 * * 1-5"
+    - cron: "15 8 * * 1-5"
+
+jobs:
+  run-price-sync:
+    runs-on: ubuntu-latest
+    env:
+      TZ: Asia/Shanghai
+      FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+      FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+      FEISHU_APP_TOKEN: ${{ secrets.FEISHU_APP_TOKEN }}
+      FEISHU_TABLE_ID: ${{ secrets.FEISHU_TABLE_ID }}
+      FEISHU_LOG_TABLE_ID: ${{ secrets.FEISHU_LOG_TABLE_ID }}
+      IFIND_ACCESS_TOKEN: ${{ secrets.IFIND_ACCESS_TOKEN }}
+      IFIND_REFRESH_TOKEN: ${{ secrets.IFIND_REFRESH_TOKEN }}
+      VOLCENGINE_ENABLED: "true"
+      VOLCENGINE_API_KEY: ${{ secrets.VOLCENGINE_API_KEY }}
+      VOLCENGINE_BASE_URL: ${{ secrets.VOLCENGINE_BASE_URL }}
+      VOLCENGINE_MODEL: ${{ secrets.VOLCENGINE_MODEL }}
+      SILICONFLOW_ENABLED: ${{ secrets.SILICONFLOW_ENABLED }}
+      SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
+      SILICONFLOW_BASE_URL: ${{ secrets.SILICONFLOW_BASE_URL }}
+      SILICONFLOW_MODEL: ${{ secrets.SILICONFLOW_MODEL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run price sync
+        run: python main_price.py

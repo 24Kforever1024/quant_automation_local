@@ -1,0 +1,13 @@
+aiohttp
+akshare
+beautifulsoup4
+numpy
+pandas
+PyMuPDF
+python-dateutil
+python-dotenv
+requests
+urllib3
+websockets>=13
+yfinance
+zhconv
