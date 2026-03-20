@@ -6,6 +6,8 @@ from utils.periods import normalize_xueqiu_symbol
 
 class PriceSyncService:
     status_field_name = "价格初始化状态"
+    status_retry = "重新拉取"
+    status_processing = "处理中"
     status_done = "完成"
     status_failed = "失败"
 
@@ -41,17 +43,11 @@ class PriceSyncService:
             )
             return False
 
+        self._update_status(record_id, self.status_processing)
+
         update = self.build_update_for_item(item, include_status=True)
         if update is None:
-            self.feishu.batch_update_records(
-                table_id,
-                [
-                    {
-                        "record_id": record_id,
-                        "fields": {self.status_field_name: self.status_failed},
-                    }
-                ],
-            )
+            self._update_status(record_id, self.status_failed)
             return False
 
         self.feishu.batch_update_records(table_id, [update])
@@ -96,6 +92,12 @@ class PriceSyncService:
             "涨跌幅": change_percent / 100,
             "总市值": round(market_cap / 100000000, 2),
         }
+
+    def _update_status(self, record_id: str, status: str) -> None:
+        self.feishu.batch_update_records(
+            self.feishu.settings.feishu_table_id,
+            [{"record_id": record_id, "fields": {self.status_field_name: status}}],
+        )
 
     @staticmethod
     def _extract_metric(df, item_name: str) -> float | None:

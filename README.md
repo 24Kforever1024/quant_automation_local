@@ -101,7 +101,7 @@ GitHub Secrets 配置说明见 `docs/GITHUB_SETUP.md`。
 ## Price-Only 事件试点
 
 - dashboard 新增辅助字段：`价格初始化状态`
-- 推荐状态值：`待处理`、`完成`、`失败`
+- 推荐状态值：`重新拉取`、`处理中`、`完成`、`失败`
 - 飞书自动化在 `代码` 从空变非空时调用 webhook
 - webhook 只校验密钥并触发 GitHub `.github/workflows/watchlist-price-init.yml`
 - workflow 只处理单条记录，不扫描整张表

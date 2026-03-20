@@ -1,12 +1,12 @@
 import unittest
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 from services.price_sync_service import PriceSyncService
 
 
 class PriceSyncServiceTests(unittest.TestCase):
-    def test_run_single_updates_target_record(self) -> None:
+    def test_run_single_marks_processing_then_done(self) -> None:
         service = PriceSyncService()
         service.feishu = Mock(
             settings=SimpleNamespace(feishu_table_id="tbl_watchlist"),
@@ -22,18 +22,27 @@ class PriceSyncServiceTests(unittest.TestCase):
             ok = service.run_single("rec_1", "700.HK")
 
         self.assertTrue(ok)
-        service.feishu.batch_update_records.assert_called_once_with(
-            "tbl_watchlist",
+        self.assertEqual(
+            service.feishu.batch_update_records.call_args_list,
             [
-                {
-                    "record_id": "rec_1",
-                    "fields": {
-                        "实时股价": 123.4,
-                        "涨跌幅": 0.015,
-                        "总市值": 999.99,
-                        "价格初始化状态": "完成",
-                    },
-                }
+                call(
+                    "tbl_watchlist",
+                    [{"record_id": "rec_1", "fields": {"价格初始化状态": "处理中"}}],
+                ),
+                call(
+                    "tbl_watchlist",
+                    [
+                        {
+                            "record_id": "rec_1",
+                            "fields": {
+                                "实时股价": 123.4,
+                                "涨跌幅": 0.015,
+                                "总市值": 999.99,
+                                "价格初始化状态": "完成",
+                            },
+                        }
+                    ],
+                ),
             ],
         )
 
@@ -62,9 +71,18 @@ class PriceSyncServiceTests(unittest.TestCase):
             ok = service.run_single("rec_1", "700.HK")
 
         self.assertFalse(ok)
-        service.feishu.batch_update_records.assert_called_once_with(
-            "tbl_watchlist",
-            [{"record_id": "rec_1", "fields": {"价格初始化状态": "失败"}}],
+        self.assertEqual(
+            service.feishu.batch_update_records.call_args_list,
+            [
+                call(
+                    "tbl_watchlist",
+                    [{"record_id": "rec_1", "fields": {"价格初始化状态": "处理中"}}],
+                ),
+                call(
+                    "tbl_watchlist",
+                    [{"record_id": "rec_1", "fields": {"价格初始化状态": "失败"}}],
+                ),
+            ],
         )
 
 
