@@ -2,6 +2,14 @@
 
 Automates price and financial-data sync for a Feishu Bitable watchlist across HK, A-share, and US equities.
 
+## Default Price-Init Path
+
+The recommended price-init path is now:
+
+`Feishu automation -> GitHub repository_dispatch -> watchlist-price-init workflow`
+
+`main_webhook_dispatch.py` is kept as a local fallback bridge and is no longer required for the default day-to-day flow.
+
 这个项目用于把多市场股票 watchlist 的价格与财务字段自动回写到飞书多维表格，支持本地运行，也支持通过 GitHub Actions 定时执行。
 
 ## Highlights

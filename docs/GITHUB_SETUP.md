@@ -13,60 +13,88 @@
 - `IFIND_REFRESH_TOKEN`
 - `VOLCENGINE_API_KEY`
 
-建议值：
+建议同时配置：
 
 - `VOLCENGINE_BASE_URL=https://ark.cn-beijing.volces.com/api/v3`
 - `VOLCENGINE_MODEL=deepseek-r1-250528`
 - `VOLCENGINE_ENABLED=true`
+- `SILICONFLOW_ENABLED`
+- `SILICONFLOW_API_KEY`
+- `SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1`
+- `SILICONFLOW_MODEL=deepseek-ai/DeepSeek-V3.2`
 
 ## 对应工作流
 
 - 价格同步：`.github/workflows/price-sync.yml`
 - 财务同步：`.github/workflows/financial-sync.yml`
-- 单行价格初始化：`.github/workflows/watchlist-price-init.yml`
+- 单条价格初始化：`.github/workflows/watchlist-price-init.yml`
 
-## 运行频率
+## 当前推荐链路
 
-### `price-sync`
+Price-only 初始化当前推荐直接由飞书自动化调用 GitHub `repository_dispatch`：
 
-- 工作日盘中高频运行
-- 支持手动触发
+`飞书自动化 -> GitHub repository_dispatch -> watchlist-price-init workflow`
 
-### `financial-sync`
+这条链路不需要日常运行本地 `ngrok` 或 `main_webhook_dispatch.py`。
 
-- `1/2/3/4/5/8/10/11` 月：每周一运行
-- `6/7/9/12` 月：每月 1 日运行
-- 支持手动触发
+## 飞书直连 GitHub 配置
 
-## 本地运行
+飞书自动化 HTTP 请求配置如下：
 
-价格同步：
+### URL
 
-```bash
-python main_price.py
+```text
+https://api.github.com/repos/<GITHUB_REPOSITORY_OWNER>/<GITHUB_REPOSITORY_NAME>/dispatches
 ```
 
-单行价格初始化：
+### Headers
 
-```bash
-python main_price_single.py --record-id recxxxxx --code 700.HK
+```text
+Accept: application/vnd.github+json
+Authorization: Bearer <YOUR_GITHUB_TOKEN>
+X-GitHub-Api-Version: 2022-11-28
+Content-Type: application/json
 ```
 
-财务同步：
+### JSON Body
 
-```bash
-python main_financial.py
+```json
+{
+  "event_type": "watchlist_price_init",
+  "client_payload": {
+    "record_id": "{{当前记录的record_id}}",
+    "code": "{{当前记录的代码}}",
+    "event_time": "{{当前时间或飞书变量}}",
+    "source": "feishu_watchlist"
+  }
+}
 ```
 
-Webhook 转发服务：
+说明：
+
+- `event_type` 必须和 `.env` / workflow 中的 `watchlist_price_init` 保持一致
+- `record_id` 必须传飞书多维表格这条记录的真实 `record_id`
+- `code` 会被 workflow 传给 `main_price_single.py`
+
+## 本地备用方案
+
+如果以后需要保留本地中转方案，仍可使用：
 
 ```bash
 python main_webhook_dispatch.py
 ```
 
-## Webhook 环境变量
+此时飞书自动化改为调用本地 webhook，而不是 GitHub API。
 
-这部分配置给 webhook 接收器使用，不是 GitHub Actions secrets：
+本地中转只在以下场景需要：
+
+- 不希望把 GitHub token 配到飞书侧
+- 需要在 webhook 层做额外验签或字段转换
+- 需要本地调试 webhook 入参
+
+## 本地 webhook 备用环境变量
+
+以下变量仅在使用本地中转时需要，不是飞书直连 GitHub 的日常必需项：
 
 - `GITHUB_DISPATCH_TOKEN`
 - `GITHUB_REPOSITORY_OWNER`
@@ -76,19 +104,22 @@ python main_webhook_dispatch.py
 - `WEBHOOK_HOST=0.0.0.0`
 - `WEBHOOK_PORT=8787`
 
-飞书 webhook 推荐至少发送以下 JSON 字段：
+## 验证步骤
 
-```json
-{
-  "record_id": "recxxxxx",
-  "code": "700.HK",
-  "event_time": "2026-03-20T09:30:00+08:00"
-}
-```
+1. 在飞书 watchlist 新增一条记录。
+2. 确认飞书自动化 HTTP 请求返回 2xx。
+3. 在 GitHub Actions 中确认出现一次 `watchlist-price-init` workflow run。
+4. 检查 workflow 入参：
+   - `github.event.client_payload.record_id`
+   - `github.event.client_payload.code`
+5. 确认飞书记录成功回写：
+   - `实时股价`
+   - `涨跌幅`
+   - `总市值`
+   - `价格初始化状态`
 
 ## 注意事项
 
-- 港股财务同步依赖 `VOLCENGINE_API_KEY`、`IFIND_REFRESH_TOKEN`
-- 若 `IFIND_ACCESS_TOKEN` 过期，港股逻辑会优先尝试用 `IFIND_REFRESH_TOKEN` 刷新
-- `其他` 市场默认回写空值，不做财务抓取
-- `watchlist-price-init` 依赖 `repository_dispatch` 事件，不需要额外 GitHub workflow 输入
+- `watchlist-price-init` 依赖 `repository_dispatch` 事件，不需要额外 workflow 输入
+- 如果触发失败，优先检查 GitHub token 是否有目标仓库的调用权限
+- 如果 workflow 成功启动但未回写，优先检查飞书 `record_id`、`代码` 字段值和 GitHub Secrets
