@@ -23,6 +23,8 @@ Automates price and financial-data sync for a Feishu Bitable watchlist across HK
 
 - `main_price.py`：同步价格相关字段
 - `main_financial.py`：按目标市场分流，同步财务相关字段
+- `main_price_single.py`：只同步单条 watchlist 记录的价格字段
+- `main_webhook_dispatch.py`：接收飞书 webhook 并转发到 GitHub `repository_dispatch`
 
 ## 市场支持
 
@@ -35,6 +37,8 @@ Automates price and financial-data sync for a Feishu Bitable watchlist across HK
 
 - `main_price.py`
 - `main_financial.py`
+- `main_price_single.py`
+- `main_webhook_dispatch.py`
 - `clients/`：飞书、iFind、LLM 客户端
 - `data_processors/`：A 股、港股、美股处理器
 - `services/`：同步编排
@@ -45,6 +49,8 @@ Automates price and financial-data sync for a Feishu Bitable watchlist across HK
 ```bash
 python main_price.py
 python main_financial.py
+python main_price_single.py --record-id recxxxxx --code 700.HK
+python main_webhook_dispatch.py
 ```
 
 ## 环境变量
@@ -70,12 +76,27 @@ python main_financial.py
 - `SILICONFLOW_BASE_URL`
 - `SILICONFLOW_MODEL`
 - `SILICONFLOW_ENABLED=true`
+- `GITHUB_DISPATCH_TOKEN`
+- `GITHUB_REPOSITORY_OWNER`
+- `GITHUB_REPOSITORY_NAME`
+- `GITHUB_DISPATCH_EVENT_TYPE=watchlist_price_init`
+- `WEBHOOK_SHARED_SECRET`
+- `WEBHOOK_HOST=0.0.0.0`
+- `WEBHOOK_PORT=8787`
 
 - 美股 `earnings_dates` 默认会优先使用 `YFINANCE_CACHE_DIR`
 - 如果未设置，GitHub Actions 会落到 `RUNNER_TEMP/yfinance-cache`
 - 本地未设置时会落到项目内 `.cache/yfinance`
 
 GitHub Secrets 配置说明见 `docs/GITHUB_SETUP.md`。
+
+## Price-Only 事件试点
+
+- dashboard 新增辅助字段：`价格初始化状态`
+- 推荐状态值：`待处理`、`完成`、`失败`
+- 飞书自动化在 `代码` 从空变非空时调用 webhook
+- webhook 只校验密钥并触发 GitHub `.github/workflows/watchlist-price-init.yml`
+- workflow 只处理单条记录，不扫描整张表
 
 ## 说明
 

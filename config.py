@@ -81,6 +81,13 @@ class Settings:
     financial_sync_workers: int
     hk_sync_workers: int
     non_hk_sync_workers: int
+    github_dispatch_token: str
+    github_repository_owner: str
+    github_repository_name: str
+    github_dispatch_event_type: str
+    webhook_shared_secret: str
+    webhook_host: str
+    webhook_port: int
 
 
 def _env_int(key: str, default: int) -> int:
@@ -125,4 +132,11 @@ def get_settings() -> Settings:
         financial_sync_workers=_env_int("FINANCIAL_SYNC_WORKERS", 4),
         hk_sync_workers=_env_int("HK_SYNC_WORKERS", 2),
         non_hk_sync_workers=_env_int("NON_HK_SYNC_WORKERS", 4),
+        github_dispatch_token=_env("GITHUB_DISPATCH_TOKEN"),
+        github_repository_owner=_env("GITHUB_REPOSITORY_OWNER"),
+        github_repository_name=_env("GITHUB_REPOSITORY_NAME"),
+        github_dispatch_event_type=_env("GITHUB_DISPATCH_EVENT_TYPE", "watchlist_price_init"),
+        webhook_shared_secret=_env("WEBHOOK_SHARED_SECRET"),
+        webhook_host=_env("WEBHOOK_HOST", "0.0.0.0"),
+        webhook_port=_env_int("WEBHOOK_PORT", 8787),
     )

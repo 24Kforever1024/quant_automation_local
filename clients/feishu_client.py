@@ -63,6 +63,23 @@ class FeishuBitableClient:
                 break
         return items
 
+    def get_record(self, table_id: str, record_id: str) -> dict:
+        url = (
+            f"https://open.feishu.cn/open-apis/bitable/v1/apps/"
+            f"{self.settings.feishu_app_token}/tables/{table_id}/records/{record_id}"
+        )
+        response = requests.get(url, headers=self._headers(), timeout=30)
+        response.raise_for_status()
+        body = response.json()
+        if body.get("code") != 0:
+            raise RuntimeError(f"Feishu get record error: {body.get('msg')}")
+
+        data = body.get("data") or {}
+        item = data.get("record")
+        if not isinstance(item, dict):
+            raise RuntimeError(f"Feishu record missing: {record_id}")
+        return item
+
     def batch_update_records(self, table_id: str, records: Iterable[dict], batch_size: int = 100) -> None:
         buffered = list(records)
         if not buffered:
