@@ -6,6 +6,60 @@ from services.price_sync_service import PriceSyncService
 
 
 class PriceSyncServiceTests(unittest.TestCase):
+    def test_run_filters_records_by_market_field(self) -> None:
+        service = PriceSyncService()
+        service.feishu = Mock(
+            settings=SimpleNamespace(feishu_table_id="tbl_watchlist"),
+            list_records=Mock(
+                return_value=[
+                    {"record_id": "rec_us", "fields": {"代码": "AAPL.O", "目标市场": "美股"}},
+                    {"record_id": "rec_hk", "fields": {"代码": "700.HK", "目标市场": "港股"}},
+                ]
+            ),
+            batch_update_records=Mock(),
+        )
+
+        with patch.object(
+            service,
+            "build_update_for_item",
+            side_effect=[
+                {"record_id": "rec_us", "fields": {"实时股价": 188.0}},
+            ],
+        ) as mock_build:
+            service.run(market_filter="美股")
+
+        mock_build.assert_called_once_with(
+            {"record_id": "rec_us", "fields": {"代码": "AAPL.O", "目标市场": "美股"}}
+        )
+        service.feishu.batch_update_records.assert_called_once_with(
+            "tbl_watchlist",
+            [{"record_id": "rec_us", "fields": {"实时股价": 188.0}}],
+        )
+
+    def test_run_accepts_ascii_market_alias(self) -> None:
+        service = PriceSyncService()
+        service.feishu = Mock(
+            settings=SimpleNamespace(feishu_table_id="tbl_watchlist"),
+            list_records=Mock(
+                return_value=[
+                    {"record_id": "rec_us", "fields": {"代码": "AAPL.O", "目标市场": "美股"}},
+                    {"record_id": "rec_hk", "fields": {"代码": "700.HK", "目标市场": "港股"}},
+                ]
+            ),
+            batch_update_records=Mock(),
+        )
+
+        with patch.object(
+            service,
+            "build_update_for_item",
+            return_value={"record_id": "rec_us", "fields": {"实时股价": 188.0}},
+        ) as mock_build:
+            service.run(market_filter="us")
+
+        mock_build.assert_called_once_with(
+            {"record_id": "rec_us", "fields": {"代码": "AAPL.O", "目标市场": "美股"}}
+        )
+
     def test_run_single_marks_processing_then_done(self) -> None:
         service = PriceSyncService()
         service.feishu = Mock(

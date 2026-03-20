@@ -54,6 +54,9 @@ The recommended price-init path is now:
 - `tests/`：本地可重复运行的轻量测试
 - `.github/workflows/`：GitHub Actions
 
+A/H day refresh is handled by `.github/workflows/price-sync-ah.yml`.
+US-only night refresh is handled by `.github/workflows/price-sync-us.yml`.
+
 ```bash
 python main_price.py
 python main_financial.py

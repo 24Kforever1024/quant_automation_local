@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from clients.feishu_client import FeishuBitableClient
-from utils.periods import normalize_xueqiu_symbol
+from utils.periods import infer_market_from_code, normalize_market_label, normalize_xueqiu_symbol
 
 
 class PriceSyncService:
@@ -14,10 +14,13 @@ class PriceSyncService:
     def __init__(self) -> None:
         self.feishu = FeishuBitableClient()
 
-    def run(self) -> None:
+    def run(self, market_filter: str | None = None) -> None:
         records = self.feishu.list_records(self.feishu.settings.feishu_table_id)
         updates: list[dict] = []
+        normalized_market_filter = self._normalize_market_filter(market_filter)
         for item in records:
+            if normalized_market_filter and not self._matches_market_filter(item, normalized_market_filter):
+                continue
             update = self.build_update_for_item(item)
             if update is not None:
                 updates.append(update)
@@ -112,3 +115,15 @@ class PriceSyncService:
             if value is not None:
                 return value
         return None
+
+    @staticmethod
+    def _normalize_market_filter(market_filter: str | None) -> str:
+        normalized = normalize_market_label(market_filter)
+        return normalized or str(market_filter or "").strip()
+
+    @staticmethod
+    def _matches_market_filter(item: dict, market_filter: str) -> bool:
+        fields = item.get("fields") or {}
+        raw_code = str(fields.get("代码") or "").strip().upper()
+        market = normalize_market_label(fields.get("目标市场")) or infer_market_from_code(raw_code)
+        return market == market_filter

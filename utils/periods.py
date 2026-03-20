@@ -14,13 +14,21 @@ def normalize_market_label(value) -> str:
     if isinstance(value, dict):
         value = value.get("text") or value.get("name") or value.get("value") or ""
     text = str(value or "").strip()
+    normalized = text.lower()
     mapping = {
         "港股": "港股",
+        "hk": "港股",
+        "hkex": "港股",
         "A股": "A股",
+        "a": "A股",
+        "ashare": "A股",
+        "cn": "A股",
         "美股": "美股",
+        "us": "美股",
+        "usa": "美股",
         "其他": "其他",
     }
-    return mapping.get(text, "")
+    return mapping.get(text, mapping.get(normalized, ""))
 
 
 def infer_market_from_code(code: str) -> str:

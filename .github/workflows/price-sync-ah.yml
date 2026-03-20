@@ -1,4 +1,4 @@
-name: price-sync
+name: price-sync-ah
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ on:
     - cron: "15 8 * * 1-5"
 
 jobs:
-  run-price-sync:
+  run-price-sync-ah:
     runs-on: ubuntu-latest
     env:
       TZ: Asia/Shanghai
@@ -38,5 +38,7 @@ jobs:
           cache: "pip"
       - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: Run price sync
-        run: python main_price.py
+      - name: Run HK price sync
+        run: python main_price.py --market hk
+      - name: Run A-share price sync
+        run: python main_price.py --market a

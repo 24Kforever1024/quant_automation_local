@@ -25,9 +25,28 @@
 
 ## 对应工作流
 
-- 价格同步：`.github/workflows/price-sync.yml`
+- A/H 日间价格同步：`.github/workflows/price-sync-ah.yml`
+- 美股夜间价格同步：`.github/workflows/price-sync-us.yml`
 - 财务同步：`.github/workflows/financial-sync.yml`
 - 单条价格初始化：`.github/workflows/watchlist-price-init.yml`
+
+其中 A/H 日间价格同步会分别执行：
+
+- `python main_price.py --market hk`
+- `python main_price.py --market a`
+
+其中美股夜间价格同步按纽约时间以下四个时点执行：
+
+- `09:45`
+- `11:45`
+- `13:45`
+- `16:15`
+
+命令行市场筛选支持中文和值别名：
+
+- `港股` / `hk`
+- `A股` / `a`
+- `美股` / `us`
 
 ## 当前推荐链路
 

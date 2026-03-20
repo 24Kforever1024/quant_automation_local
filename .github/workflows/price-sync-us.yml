@@ -1,0 +1,53 @@
+name: price-sync-us
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "45 13,14,15,16,17,18 * * 1-5"
+    - cron: "15 20,21 * * 1-5"
+
+jobs:
+  run-price-sync-us:
+    runs-on: ubuntu-latest
+    env:
+      TZ: Asia/Shanghai
+      FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+      FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+      FEISHU_APP_TOKEN: ${{ secrets.FEISHU_APP_TOKEN }}
+      FEISHU_TABLE_ID: ${{ secrets.FEISHU_TABLE_ID }}
+      FEISHU_LOG_TABLE_ID: ${{ secrets.FEISHU_LOG_TABLE_ID }}
+      IFIND_ACCESS_TOKEN: ${{ secrets.IFIND_ACCESS_TOKEN }}
+      IFIND_REFRESH_TOKEN: ${{ secrets.IFIND_REFRESH_TOKEN }}
+      VOLCENGINE_ENABLED: "true"
+      VOLCENGINE_API_KEY: ${{ secrets.VOLCENGINE_API_KEY }}
+      VOLCENGINE_BASE_URL: "https://ark.cn-beijing.volces.com/api/v3"
+      VOLCENGINE_MODEL: "deepseek-r1-250528"
+      SILICONFLOW_ENABLED: ${{ secrets.SILICONFLOW_ENABLED }}
+      SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
+      SILICONFLOW_BASE_URL: "https://api.siliconflow.cn/v1"
+      SILICONFLOW_MODEL: "deepseek-ai/DeepSeek-V3.2"
+    steps:
+      - name: Decide US market window
+        id: market_window
+        shell: bash
+        run: |
+          ny_hhmm=$(TZ=America/New_York date +%H:%M)
+          run=no
+          if [[ "$ny_hhmm" == "09:45" || "$ny_hhmm" == "11:45" || "$ny_hhmm" == "13:45" || "$ny_hhmm" == "16:15" ]]; then
+            run=yes
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          echo "ny_hhmm=$ny_hhmm run=$run"
+      - uses: actions/checkout@v4
+        if: steps.market_window.outputs.run == 'yes' || github.event_name == 'workflow_dispatch'
+      - uses: actions/setup-python@v5
+        if: steps.market_window.outputs.run == 'yes' || github.event_name == 'workflow_dispatch'
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install dependencies
+        if: steps.market_window.outputs.run == 'yes' || github.event_name == 'workflow_dispatch'
+        run: pip install -r requirements.txt
+      - name: Run US-only price sync
+        if: steps.market_window.outputs.run == 'yes' || github.event_name == 'workflow_dispatch'
+        run: python main_price.py --market us
