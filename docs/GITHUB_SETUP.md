@@ -29,6 +29,7 @@
 - 美股夜间价格同步：`.github/workflows/price-sync-us.yml`
 - 财务同步：`.github/workflows/financial-sync.yml`
 - 单条价格初始化：`.github/workflows/watchlist-price-init.yml`
+- 单条财务初始化：`.github/workflows/watchlist-financial-init.yml`
 
 其中 A/H 日间价格同步会分别执行：
 
@@ -95,6 +96,12 @@ Content-Type: application/json
 - `record_id` 必须传飞书多维表格这条记录的真实 `record_id`
 - `code` 会被 workflow 传给 `main_price_single.py`
 
+单条财务初始化可复用同一套 GitHub `repository_dispatch` 调用，只需要把：
+
+- `event_type` 改成 `watchlist_financial_init`
+- workflow 改成 `.github/workflows/watchlist-financial-init.yml`
+- 单条入口改成 `main_financial_single.py`
+
 ## 本地备用方案
 
 如果以后需要保留本地中转方案，仍可使用：
@@ -136,6 +143,14 @@ python main_webhook_dispatch.py
    - `涨跌幅`
    - `总市值`
    - `价格初始化状态`
+
+如同时开启财务新增行更新，再额外确认：
+
+- `最新财报季(A)`
+- `目标财报季(E)`
+- `最近业绩期盈利预测`
+- `拟披露时间`
+- `财务初始化状态`
 
 ## 注意事项
 

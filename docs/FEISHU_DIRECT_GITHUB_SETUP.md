@@ -12,7 +12,7 @@
 
 ## 适用范围
 
-本说明只针对 watchlist 新增条目后的单条价格初始化，不涉及 financial 自动触发。
+本说明以 watchlist 新增条目后的单条价格初始化为例。财务新增行更新也可复用同样模式，只需把 `event_type` 改为 `watchlist_financial_init`，并触发 `.github/workflows/watchlist-financial-init.yml`。
 
 ## 飞书自动化配置
 

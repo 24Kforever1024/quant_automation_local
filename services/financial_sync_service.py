@@ -24,6 +24,12 @@ class FinancialTask:
 
 
 class FinancialSyncService:
+    status_field_name = "财务初始化状态"
+    status_retry = "重新拉取"
+    status_processing = "处理中"
+    status_done = "完成"
+    status_failed = "失败"
+
     def __init__(self) -> None:
         self.feishu = FeishuBitableClient()
         self.settings = self.feishu.settings
@@ -41,19 +47,56 @@ class FinancialSyncService:
         self.feishu.batch_update_records(self.settings.feishu_table_id, updates)
         elapsed_seconds = time.perf_counter() - started_at
         print(f"财务同步完成，更新 {len(updates)} 条记录。")
-
         print(f"耗时 {elapsed_seconds:.2f} 秒")
+
+    def run_single(self, record_id: str, expected_code: str) -> bool:
+        table_id = self.feishu.settings.feishu_table_id
+        normalized_expected_code = str(expected_code or "").strip().upper()
+        item = self.feishu.get_record(table_id, record_id)
+        fields = item.get("fields") or {}
+        current_code = str(fields.get("代码") or "").strip().upper()
+
+        if not current_code:
+            print(f"当前记录代码为空，跳过: {record_id}")
+            return False
+
+        if normalized_expected_code and current_code != normalized_expected_code:
+            print(
+                f"事件代码已过期，跳过: {record_id} "
+                f"(expected={normalized_expected_code}, current={current_code})"
+            )
+            return False
+
+        self._update_status(record_id, self.status_processing)
+
+        log_records = self.feishu.list_records(self.feishu.settings.feishu_log_table_id)
+        log_lookup = self._build_log_lookup(log_records)
+        update = self.build_update_for_item(item, log_lookup, date.today(), include_status=True)
+        if update is None:
+            self._update_status(record_id, self.status_failed)
+            return False
+
+        self.feishu.batch_update_records(table_id, [update])
+        return True
+
+    def build_update_for_item(
+        self,
+        item: dict,
+        log_lookup: dict[tuple[str, str], float],
+        today: date,
+        include_status: bool = False,
+    ) -> dict | None:
+        task = self._build_task(item)
+        if task is None:
+            return None
+        return self._process_task(task, log_lookup, today, include_status=include_status)
 
     def _build_tasks(self, main_records: list[dict]) -> list[FinancialTask]:
         tasks: list[FinancialTask] = []
         for item in main_records:
-            record_id = str(item.get("record_id") or "").strip()
-            fields = item.get("fields") or {}
-            raw_code = str(fields.get("代码") or "").strip().upper()
-            if not record_id or not raw_code:
-                continue
-            market = normalize_market_label(fields.get("目标市场")) or infer_market_from_code(raw_code)
-            tasks.append(FinancialTask(record_id=record_id, code=raw_code, market=market))
+            task = self._build_task(item)
+            if task is not None:
+                tasks.append(task)
         return tasks
 
     def _run_tasks(
@@ -89,10 +132,10 @@ class FinancialSyncService:
             return []
 
         import queue
+
         api_channels = build_hk_llm_api_channels(self.settings)
         assignment_map = build_balanced_hk_api_assignments([task.code for task in tasks], api_channels)
-        
-        # Build a queue for each API channel
+
         queues: dict[str, queue.Queue] = {channel["name"]: queue.Queue() for channel in api_channels}
         for task in tasks:
             api_channel = assignment_map.get(task.code.upper())
@@ -106,8 +149,6 @@ class FinancialSyncService:
 
         updates: list[dict] = []
         updates_lock = threading.Lock()
-        
-        # Max out the thread workers strictly bounded by number of available channels or max config
         max_workers = min(
             max(2, self.settings.hk_sync_workers),
             max(1, len(api_channels)),
@@ -116,15 +157,13 @@ class FinancialSyncService:
         def _worker_loop(worker_channel: dict[str, Any]) -> None:
             worker_name = worker_channel["name"]
             channel_names = list(queues.keys())
-            
+
             while True:
                 task = None
-                
-                # 1. Try to fetch from affinity queue (non-blocking)
+
                 try:
                     task = queues[worker_name].get_nowait()
                 except queue.Empty:
-                    # 2. If empty, try stealing from other queues (non-blocking)
                     for other_name in channel_names:
                         if other_name == worker_name:
                             continue
@@ -133,33 +172,25 @@ class FinancialSyncService:
                             break
                         except queue.Empty:
                             pass
-                
-                # If all queues are empty, worker is done
+
                 if task is None:
                     break
-                
-                try:
-                    update_dict = self._process_task(
-                        task,
-                        log_lookup,
-                        today,
-                        hk_api_channel=assignment_map.get(task.code.upper()),
-                    )
-                    if update_dict is not None:
-                        with updates_lock:
-                            updates.append(update_dict)
-                finally:
-                    # Mark task as done in the queue it was pulled from (though we don't strictly use join)
-                    pass
+
+                update_dict = self._process_task(
+                    task,
+                    log_lookup,
+                    today,
+                    hk_api_channel=assignment_map.get(task.code.upper()),
+                )
+                if update_dict is not None:
+                    with updates_lock:
+                        updates.append(update_dict)
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Assing an API channel to each worker.
-            # If workers > channels, loop over channels cyclically
             future_list = []
             for i in range(max_workers):
-                ch = api_channels[i % len(api_channels)]
-                future_list.append(executor.submit(_worker_loop, ch))
-                
+                channel = api_channels[i % len(api_channels)]
+                future_list.append(executor.submit(_worker_loop, channel))
             concurrent.futures.wait(future_list)
 
         return updates
@@ -192,30 +223,71 @@ class FinancialSyncService:
         log_lookup: dict[tuple[str, str], float],
         today: date,
         hk_api_channel: Mapping[str, Any] | None = None,
+        include_status: bool = False,
     ) -> dict | None:
         try:
             result = self._dispatch(task.market, task.code, today, hk_api_channel=hk_api_channel)
-            target_e = result.target_period_estimate
-            estimate_profit = log_lookup.get((task.code, target_e))
-            result.earnings_prediction_text = self._build_status_text(target_e, estimate_profit, result.yoy_base_profit)
+            target_period = result.target_period_estimate
+            estimate_profit = log_lookup.get((task.code, target_period))
+            result.earnings_prediction_text = self._build_status_text(
+                target_period,
+                estimate_profit,
+                result.yoy_base_profit,
+            )
 
             if task.market == "港股" and hk_api_channel is not None:
-                print(f"✅ 财务同步成功: {task.code} [{task.market}] -> {hk_api_channel.get('name')}")
+                print(f"财务同步成功: {task.code} [{task.market}] -> {hk_api_channel.get('name')}")
             else:
-                print(f"✅ 财务同步成功: {task.code} [{task.market}]")
+                print(f"财务同步成功: {task.code} [{task.market}]")
+
+            update_fields = {
+                "最新财报季(A)": result.latest_actual_period or None,
+                "目标财报季(E)": result.target_period_estimate or None,
+                "最近业绩期盈利预测": result.earnings_prediction_text or None,
+                "拟披露时间": to_feishu_timestamp_ms(result.planned_disclosure_date),
+            }
+            if include_status:
+                update_fields[self.status_field_name] = self.status_done
 
             return {
                 "record_id": task.record_id,
-                "fields": {
-                    "最新财报季(A)": result.latest_actual_period or None,
-                    "目标财报季(E)": result.target_period_estimate or None,
-                    "最近业绩期盈利预测": result.earnings_prediction_text or None,
-                    "拟披露时间": to_feishu_timestamp_ms(result.planned_disclosure_date),
-                },
+                "fields": update_fields,
             }
         except Exception as exc:
-            print(f"⚠️ 财务同步失败 {task.code} [{task.market}]: {exc}")
+            print(f"财务同步失败 {task.code} [{task.market}]: {exc}")
             return None
+
+    def _dispatch(
+        self,
+        market: str,
+        code: str,
+        as_of_date: date,
+        hk_api_channel: Mapping[str, Any] | None = None,
+    ) -> FinancialSyncResult:
+        if market == "港股":
+            return self.hk_processor.analyze(code, as_of_date, llm_api_channel=hk_api_channel)
+        if market == "A股":
+            return self.a_processor.analyze(code, as_of_date)
+        if market == "美股":
+            return self.us_processor.analyze(code, as_of_date)
+        return FinancialSyncResult(meta={"market": market or "其他", "code": code})
+
+    def _update_status(self, record_id: str, status: str) -> None:
+        self.feishu.batch_update_records(
+            self.feishu.settings.feishu_table_id,
+            [{"record_id": record_id, "fields": {self.status_field_name: status}}],
+        )
+
+    @staticmethod
+    def _build_task(item: dict) -> FinancialTask | None:
+        record_id = str(item.get("record_id") or "").strip()
+        fields = item.get("fields") or {}
+        raw_code = str(fields.get("代码") or "").strip().upper()
+        if not record_id or not raw_code:
+            return None
+
+        market = normalize_market_label(fields.get("目标市场")) or infer_market_from_code(raw_code)
+        return FinancialTask(record_id=record_id, code=raw_code, market=market)
 
     @staticmethod
     def _build_log_lookup(log_records: list[dict]) -> dict[tuple[str, str], float]:
@@ -232,21 +304,6 @@ class FinancialSyncService:
             except (TypeError, ValueError):
                 continue
         return lookup
-
-    def _dispatch(
-        self,
-        market: str,
-        code: str,
-        as_of_date: date,
-        hk_api_channel: Mapping[str, Any] | None = None,
-    ) -> FinancialSyncResult:
-        if market == "港股":
-            return self.hk_processor.analyze(code, as_of_date, llm_api_channel=hk_api_channel)
-        if market == "A股":
-            return self.a_processor.analyze(code, as_of_date)
-        if market == "美股":
-            return self.us_processor.analyze(code, as_of_date)
-        return FinancialSyncResult(meta={"market": market or "其他", "code": code})
 
     @staticmethod
     def _build_status_text(target_period: str, estimate_profit: float | None, yoy_base_profit: float | None) -> str:

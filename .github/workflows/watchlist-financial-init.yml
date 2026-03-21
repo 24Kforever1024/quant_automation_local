@@ -1,0 +1,44 @@
+name: watchlist-financial-init
+
+on:
+  repository_dispatch:
+    types:
+      - watchlist_financial_init
+
+concurrency:
+  group: watchlist-financial-init-${{ github.event.client_payload.record_id }}
+  cancel-in-progress: false
+
+jobs:
+  run-watchlist-financial-init:
+    runs-on: ubuntu-latest
+    env:
+      TZ: Asia/Shanghai
+      FEISHU_APP_ID: ${{ secrets.FEISHU_APP_ID }}
+      FEISHU_APP_SECRET: ${{ secrets.FEISHU_APP_SECRET }}
+      FEISHU_APP_TOKEN: ${{ secrets.FEISHU_APP_TOKEN }}
+      FEISHU_TABLE_ID: ${{ secrets.FEISHU_TABLE_ID }}
+      FEISHU_LOG_TABLE_ID: ${{ secrets.FEISHU_LOG_TABLE_ID }}
+      IFIND_ACCESS_TOKEN: ${{ secrets.IFIND_ACCESS_TOKEN }}
+      IFIND_REFRESH_TOKEN: ${{ secrets.IFIND_REFRESH_TOKEN }}
+      VOLCENGINE_ENABLED: "true"
+      VOLCENGINE_API_KEY: ${{ secrets.VOLCENGINE_API_KEY }}
+      VOLCENGINE_BASE_URL: "https://ark.cn-beijing.volces.com/api/v3"
+      VOLCENGINE_MODEL: "deepseek-r1-250528"
+      SILICONFLOW_ENABLED: ${{ secrets.SILICONFLOW_ENABLED }}
+      SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_API_KEY }}
+      SILICONFLOW_BASE_URL: "https://api.siliconflow.cn/v1"
+      SILICONFLOW_MODEL: "deepseek-ai/DeepSeek-V3.2"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run single-record financial sync
+        run: >-
+          python main_financial_single.py
+          --record-id "${{ github.event.client_payload.record_id }}"
+          --code "${{ github.event.client_payload.code }}"

@@ -2,11 +2,13 @@
 
 Automates price and financial-data sync for a Feishu Bitable watchlist across HK, A-share, and US equities.
 
-## Default Price-Init Path
+## Default Single-Record Paths
 
-The recommended price-init path is now:
+The recommended single-record init paths are now:
 
 `Feishu automation -> GitHub repository_dispatch -> watchlist-price-init workflow`
+
+`Feishu automation -> GitHub repository_dispatch -> watchlist-financial-init workflow`
 
 `main_webhook_dispatch.py` is kept as a local fallback bridge and is no longer required for the default day-to-day flow.
 
@@ -32,6 +34,7 @@ The recommended price-init path is now:
 - `main_price.py`：同步价格相关字段
 - `main_financial.py`：按目标市场分流，同步财务相关字段
 - `main_price_single.py`：只同步单条 watchlist 记录的价格字段
+- `main_financial_single.py`：只同步单条 watchlist 记录的财务字段
 - `main_webhook_dispatch.py`：接收飞书 webhook 并转发到 GitHub `repository_dispatch`
 
 ## 市场支持
@@ -46,6 +49,7 @@ The recommended price-init path is now:
 - `main_price.py`
 - `main_financial.py`
 - `main_price_single.py`
+- `main_financial_single.py`
 - `main_webhook_dispatch.py`
 - `clients/`：飞书、iFind、LLM 客户端
 - `data_processors/`：A 股、港股、美股处理器
@@ -61,6 +65,7 @@ US-only night refresh is handled by `.github/workflows/price-sync-us.yml`.
 python main_price.py
 python main_financial.py
 python main_price_single.py --record-id recxxxxx --code 700.HK
+python main_financial_single.py --record-id recxxxxx --code 700.HK
 python main_webhook_dispatch.py
 ```
 
@@ -107,6 +112,13 @@ GitHub Secrets 配置说明见 `docs/GITHUB_SETUP.md`。
 - 推荐状态值：`重新拉取`、`处理中`、`完成`、`失败`
 - 飞书自动化在 `代码` 从空变非空时调用 webhook
 - webhook 只校验密钥并触发 GitHub `.github/workflows/watchlist-price-init.yml`
+- workflow 只处理单条记录，不扫描整张表
+
+## Financial-Only 事件试点
+
+- dashboard 新增辅助字段：`财务初始化状态`
+- 推荐状态值：`重新拉取`、`处理中`、`完成`、`失败`
+- 飞书自动化可在 `代码` 从空变非空时额外触发 GitHub `.github/workflows/watchlist-financial-init.yml`
 - workflow 只处理单条记录，不扫描整张表
 
 ## 说明
