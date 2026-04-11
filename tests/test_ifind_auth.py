@@ -18,9 +18,11 @@ class IFindAuthTests(unittest.TestCase):
             feishu_log_table_id="",
             ifind_access_token="stale-token",
             ifind_refresh_token="refresh-token",
-            deepseek_api_key="",
-            deepseek_base_url="https://api.deepseek.com/v1",
-            deepseek_model="deepseek-reasoner",
+            volcengine_enabled=True,
+            volcengine_api_key="",
+            volcengine_base_url="https://ark.cn-beijing.volces.com/api/v3",
+            volcengine_model="deepseek-r1-250528",
+            siliconflow_enabled=True,
             siliconflow_api_key="",
             siliconflow_base_url="https://api.siliconflow.cn/v1",
             siliconflow_model="deepseek-ai/DeepSeek-V3.2",
@@ -32,6 +34,13 @@ class IFindAuthTests(unittest.TestCase):
             financial_sync_workers=4,
             hk_sync_workers=1,
             non_hk_sync_workers=4,
+            github_dispatch_token="",
+            github_repository_owner="",
+            github_repository_name="",
+            github_dispatch_event_type="watchlist_price_init",
+            webhook_shared_secret="",
+            webhook_host="0.0.0.0",
+            webhook_port=8787,
         )
         client = IFindDataPoolClient(settings)
 

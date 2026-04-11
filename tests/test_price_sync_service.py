@@ -6,6 +6,55 @@ from services.price_sync_service import PriceSyncService
 
 
 class PriceSyncServiceTests(unittest.TestCase):
+    def test_fetch_price_fields_uses_ifind_realtime_quote(self) -> None:
+        service = PriceSyncService()
+        service.ifind = Mock(
+            get_realtime_quote=Mock(
+                return_value={
+                    "latest": 105.1,
+                    "totalCapital": 958217464081.5,
+                    "changeRatio": 3.2416502946954786,
+                }
+            )
+        )
+
+        result = service._fetch_price_fields("1211.HK")
+
+        self.assertEqual(
+            result,
+            {
+                "实时股价": 105.1,
+                "涨跌幅": 0.032416502946954785,
+                "总市值": 9582.17,
+            },
+        )
+        service.ifind.get_realtime_quote.assert_called_once_with("1211.HK")
+
+    def test_fetch_price_fields_uses_total_shares_for_us_market_cap(self) -> None:
+        service = PriceSyncService()
+        service.ifind = Mock(
+            get_realtime_quote_without_market_cap=Mock(
+                return_value={
+                    "latest": 13.49,
+                    "changeRatio": 5.060728744939271,
+                }
+            ),
+            get_total_shares=Mock(return_value=75198817.0),
+        )
+
+        result = service._fetch_price_fields("AAOI.O")
+
+        self.assertEqual(
+            result,
+            {
+                "实时股价": 13.49,
+                "涨跌幅": 0.05060728744939271,
+                "总市值": 10.14,
+            },
+        )
+        service.ifind.get_realtime_quote_without_market_cap.assert_called_once_with("AAOI.O")
+        service.ifind.get_total_shares.assert_called_once()
+
     def test_run_filters_records_by_market_field(self) -> None:
         service = PriceSyncService()
         service.feishu = Mock(

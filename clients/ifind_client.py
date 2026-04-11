@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 import requests
@@ -39,6 +39,95 @@ class IFindDataPoolClient:
         except requests.RequestException:
             return None
 
+    def get_realtime_quote(self, stock_code: str) -> dict[str, float]:
+        payload = {
+            "codes": stock_code.upper(),
+            "indicators": "latest,totalCapital,changeRatio",
+        }
+        response = self._post_with_retry(
+            "real_time_quotation",
+            payload,
+            timeout=20,
+            extra_headers={"ifindlang": "cn"},
+        )
+        if response.get("errorcode") not in (None, 0):
+            raise requests.RequestException(
+                f"IFind realtime quote error: {response.get('errmsg') or response.get('errorinfo') or 'unknown'}"
+            )
+
+        tables = response.get("tables") or []
+        if not tables:
+            raise requests.RequestException("IFind realtime quote missing tables")
+
+        table = tables[0].get("table") or {}
+        latest = self._extract_first_number(table.get("latest"))
+        total_capital = self._extract_first_number(table.get("totalCapital"))
+        change_ratio = self._extract_first_number(table.get("changeRatio"))
+        if latest is None or total_capital is None or change_ratio is None:
+            raise requests.RequestException("IFind realtime quote missing fields")
+
+        return {
+            "latest": latest,
+            "totalCapital": total_capital,
+            "changeRatio": change_ratio,
+        }
+
+    def get_realtime_quote_without_market_cap(self, stock_code: str) -> dict[str, float]:
+        payload = {
+            "codes": stock_code.upper(),
+            "indicators": "latest,changeRatio",
+        }
+        response = self._post_with_retry(
+            "real_time_quotation",
+            payload,
+            timeout=20,
+            extra_headers={"ifindlang": "cn"},
+        )
+        if response.get("errorcode") not in (None, 0):
+            raise requests.RequestException(
+                f"IFind realtime quote error: {response.get('errmsg') or response.get('errorinfo') or 'unknown'}"
+            )
+
+        tables = response.get("tables") or []
+        if not tables:
+            raise requests.RequestException("IFind realtime quote missing tables")
+
+        table = tables[0].get("table") or {}
+        latest = self._extract_first_number(table.get("latest"))
+        change_ratio = self._extract_first_number(table.get("changeRatio"))
+        if latest is None or change_ratio is None:
+            raise requests.RequestException("IFind realtime quote missing fields")
+
+        return {
+            "latest": latest,
+            "changeRatio": change_ratio,
+        }
+
+    def get_total_shares(self, stock_code: str, as_of_date: date | None = None) -> float:
+        date_text = ""
+        if as_of_date is not None:
+            date_text = as_of_date.strftime("%Y-%m-%d")
+
+        payload = {
+            "codes": stock_code.upper(),
+            "indipara": [{"indicator": "total_shares", "indiparams": [date_text] if date_text else []}],
+        }
+        response = self._post_with_retry("basic_data_service", payload, timeout=20)
+        if response.get("errorcode") not in (None, 0):
+            raise requests.RequestException(
+                f"IFind total_shares error: {response.get('errmsg') or response.get('errorinfo') or 'unknown'}"
+            )
+
+        tables = response.get("tables") or []
+        if not tables:
+            raise requests.RequestException("IFind total_shares missing tables")
+
+        table = tables[0].get("table") or {}
+        total_shares = self._extract_first_number(table.get("total_shares"))
+        if total_shares is None:
+            raise requests.RequestException("IFind total_shares missing fields")
+        return total_shares
+
     def _refresh_access_token(self, force_new: bool = False) -> str:
         refresh_token = self.settings.ifind_refresh_token
         if not refresh_token:
@@ -61,7 +150,13 @@ class IFindDataPoolClient:
         self._access_token = str(token)
         return self._access_token
 
-    def _post_with_retry(self, endpoint: str, payload: dict[str, Any], timeout: int) -> Any:
+    def _post_with_retry(
+        self,
+        endpoint: str,
+        payload: dict[str, Any],
+        timeout: int,
+        extra_headers: dict[str, str] | None = None,
+    ) -> Any:
         last_error: requests.RequestException | None = None
         for attempt in range(2):
             token = self._access_token or self._refresh_access_token(force_new=False)
@@ -69,7 +164,11 @@ class IFindDataPoolClient:
                 response = requests.post(
                     f"{self.BASE_URL}/{endpoint}",
                     json=payload,
-                    headers={"Content-Type": "application/json", "access_token": token},
+                    headers={
+                        "Content-Type": "application/json",
+                        "access_token": token,
+                        **(extra_headers or {}),
+                    },
                     timeout=timeout,
                 )
                 if response.status_code == 401 and self.settings.ifind_refresh_token and attempt == 0:
@@ -124,3 +223,14 @@ class IFindDataPoolClient:
             except ValueError:
                 continue
         return None
+
+    @staticmethod
+    def _extract_first_number(value: Any) -> float | None:
+        if isinstance(value, list):
+            value = value[0] if value else None
+        if value in (None, "", "None"):
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None

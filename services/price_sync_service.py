@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from datetime import date
+
 from clients.feishu_client import FeishuBitableClient
-from utils.periods import infer_market_from_code, normalize_market_label, normalize_xueqiu_symbol
+from clients.ifind_client import IFindDataPoolClient
+from utils.periods import infer_market_from_code, normalize_market_label
 
 
 class PriceSyncService:
@@ -13,6 +16,7 @@ class PriceSyncService:
 
     def __init__(self) -> None:
         self.feishu = FeishuBitableClient()
+        self.ifind = IFindDataPoolClient(self.feishu.settings)
 
     def run(self, market_filter: str | None = None) -> None:
         records = self.feishu.list_records(self.feishu.settings.feishu_table_id)
@@ -77,23 +81,25 @@ class PriceSyncService:
         return {"record_id": record_id, "fields": update_fields}
 
     def _fetch_price_fields(self, raw_code: str) -> dict[str, float]:
-        import akshare as ak
+        market = infer_market_from_code(raw_code)
+        if market == "美股":
+            return self._fetch_us_price_fields(raw_code)
 
-        symbol = normalize_xueqiu_symbol(raw_code)
-        if not symbol:
-            raise RuntimeError(f"无效代码: {raw_code}")
-
-        df = ak.stock_individual_spot_xq(symbol=symbol)
-        price = self._extract_metric(df, "现价")
-        change_percent = self._extract_metric(df, "涨幅")
-        market_cap = self._extract_market_cap(df)
-        if price is None or change_percent is None or market_cap is None:
-            raise RuntimeError(f"指标缺失: {raw_code}")
-
+        quote = self.ifind.get_realtime_quote(raw_code)
         return {
-            "实时股价": price,
-            "涨跌幅": change_percent / 100,
-            "总市值": round(market_cap / 100000000, 2),
+            "实时股价": quote["latest"],
+            "涨跌幅": quote["changeRatio"] / 100,
+            "总市值": round(quote["totalCapital"] / 100000000, 2),
+        }
+
+    def _fetch_us_price_fields(self, raw_code: str) -> dict[str, float]:
+        quote = self.ifind.get_realtime_quote_without_market_cap(raw_code)
+        total_shares = self.ifind.get_total_shares(raw_code, as_of_date=date.today())
+        market_capital = quote["latest"] * total_shares
+        return {
+            "实时股价": quote["latest"],
+            "涨跌幅": quote["changeRatio"] / 100,
+            "总市值": round(market_capital / 100000000, 2),
         }
 
     def _update_status(self, record_id: str, status: str) -> None:
@@ -101,20 +107,6 @@ class PriceSyncService:
             self.feishu.settings.feishu_table_id,
             [{"record_id": record_id, "fields": {self.status_field_name: status}}],
         )
-
-    @staticmethod
-    def _extract_metric(df, item_name: str) -> float | None:
-        try:
-            return float(df[df["item"] == item_name]["value"].values[0])
-        except Exception:
-            return None
-
-    def _extract_market_cap(self, df) -> float | None:
-        for item_name in ("资产净值/总市值", "总市值", "总市值(元)"):
-            value = self._extract_metric(df, item_name)
-            if value is not None:
-                return value
-        return None
 
     @staticmethod
     def _normalize_market_filter(market_filter: str | None) -> str:
